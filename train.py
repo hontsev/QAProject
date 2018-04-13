@@ -7,6 +7,7 @@ import time
 import datetime
 import operator
 import insurance_qa_data_helpers
+import my_qa as qa
 
 # Config函数
 class Config(object):
@@ -15,9 +16,9 @@ class Config(object):
         self.sequence_length = 200
         # 循环数
         # self.num_epochs = 100000
-        self.num_epochs=10000
+        self.num_epochs=100000
         # batch大小
-        self.batch_size = 100
+        self.batch_size =100
         # 词表大小
         self.vocab_size = vocab_size
         # 词向量大小
@@ -43,28 +44,28 @@ class Config(object):
         # 设置log打印
         self.cf = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False)
         # 只占用20%的GPU内存
-        self.cf.gpu_options.per_process_gpu_memory_fraction = 0.2
+        self.cf.gpu_options.per_process_gpu_memory_fraction = 0.7
 
 
 print( 'Loading Data...')
 
 
 # 词映射ID
-vocab = insurance_qa_data_helpers.build_vocab()
+# vocab = insurance_qa_data_helpers.build_vocab()
 # 只记录train里的回答
-alist = insurance_qa_data_helpers.read_alist()
+# alist = insurance_qa_data_helpers.read_alist()
 # raw语料,记录所有train里的raw数据
-raw = insurance_qa_data_helpers.read_raw()
+# raw = insurance_qa_data_helpers.read_raw()
 
-testList, vectors = insurance_qa_data_helpers.load_test_and_vectors()
+# testList, vectors = insurance_qa_data_helpers.load_test_and_vectors()
+
+wvmodel=qa.load_wvmodel()
+tfidf=qa.load_tfidf()
 print( 'Loading Data Done!')
 
-# 测试目录
-val_file = 'insuranceQA/test1'
 
 # 配置文件
 config = Config(len(vocab))
-config.cf.gpu_options.per_process_gpu_memory_fraction = 0.9
 config.cf.gpu_options.allow_growth = True
 
 # 开始训练和测试
@@ -105,7 +106,7 @@ with tf.device('/gpu:0'):
                     break
             sessdict = {}
             index = 0
-            for line in open(val_file):
+            for line in open(insurance_qa_data_helpers.test_data,encoding="utf-8"):
                 items = line.strip().split(' ')
                 qid = items[1].split(':')[1]
                 if not qid in sessdict:
@@ -117,6 +118,7 @@ with tf.device('/gpu:0'):
             lev1 = .0
             lev0 = .0
             for k, v in sessdict.items():
+                # print(k,v)
                 v.sort(key=operator.itemgetter(0), reverse=True)
                 score, flag = v[0]
                 if flag == '1':
@@ -129,7 +131,7 @@ with tf.device('/gpu:0'):
             print( '准确率 ' + str(float(lev1)/(lev1+lev0)))
 
         # 每5000步测试一下
-        evaluate_every = 5000
+        evaluate_every = 1000
         # 开始训练和测试
         sess.run(tf.global_variables_initializer())
         for i in range(config.num_epochs):

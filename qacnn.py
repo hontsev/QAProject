@@ -49,9 +49,7 @@ class QACNN(Model):
     # word embeddings
     def add_embeddings(self):
         with tf.variable_scope('embedding'):
-            init =tf.global_variables_initializer()
             embeddings = tf.get_variable('embeddings', initializer=tf.constant(0.1, shape=[self.config.vocab_size, self.config.embedding_size]))
-            #embeddings = tf.get_variable('embeddings', shape=[self.config.vocab_size, self.config.embedding_size], initializer=init)
             q_embed = tf.nn.embedding_lookup(embeddings, self.q)
             aplus_embed = tf.nn.embedding_lookup(embeddings, self.aplus)
             aminus_embed = tf.nn.embedding_lookup(embeddings, self.aminus)
@@ -60,11 +58,8 @@ class QACNN(Model):
     # Hidden Layer
     def add_hl(self, q_embed, aplus_embed, aminus_embed):
         with tf.variable_scope('HL'):
-            init = tf.global_variables_initializer()
             W = tf.get_variable('weights', initializer=tf.constant(0.1, shape=[self.config.embedding_size, self.config.hidden_size]))
-            #W = tf.get_variable('weights', shape=[self.config.embedding_size, self.config.hidden_size], initializer=init)
             b = tf.get_variable('biases', initializer=tf.constant(0.1, shape=[self.config.hidden_size]))
-            # print(q_embed)
             h_q = tf.reshape(tf.nn.tanh(tf.matmul(tf.reshape(q_embed, [-1, self.config.embedding_size]), W)+b), [self.config.batch_size, self.config.sequence_length, -1])
             h_ap = tf.reshape(tf.nn.tanh(tf.matmul(tf.reshape(aplus_embed, [-1, self.config.embedding_size]), W)+b), [self.config.batch_size, self.config.sequence_length, -1])
             h_am = tf.reshape(tf.nn.tanh(tf.matmul(tf.reshape(aminus_embed, [-1, self.config.embedding_size]), W)+b), [self.config.batch_size, self.config.sequence_length, -1])
@@ -111,13 +106,12 @@ class QACNN(Model):
                 tf.add_to_collection('total_loss', 0.5*self.config.l2_reg_lambda*tf.nn.l2_loss(conv1_W))
 
         total_channels = len(self.config.filter_sizes)*self.config.num_filters
-
         real_pool_q = tf.reshape(tf.concat(pool_q,3), [-1, total_channels])
         real_pool_ap = tf.reshape(tf.concat(pool_ap,3), [-1, total_channels])
         real_pool_am = tf.reshape(tf.concat(pool_am,3), [-1, total_channels])
-        # print 'real_pool_q[shape]:', tf.shape(real_pool_q)
-        # print 'real_pool_ap[shape]:', tf.shape(real_pool_ap)
-        # print 'real_pool_am[shape]:', tf.shape(real_pool_am)
+        # print('real_pool_q[shape]:', tf.shape(real_pool_q))
+        # print( 'real_pool_ap[shape]:', tf.shape(real_pool_ap))
+        # print( 'real_pool_am[shape]:', tf.shape(real_pool_am))
 
         return real_pool_q, real_pool_ap, real_pool_am
 
