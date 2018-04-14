@@ -16,53 +16,68 @@ class QACNN(Model):
         # 输入
         self.add_placeholders()
         # [batch_size, sequence_size, embed_size]
-        q_embed, aplus_embed, aminus_embed = self.add_embeddings()
+        # q_embed, aplus_embed, aminus_embed = self.add_embeddings()
         # [batch_size, sequence_size, hidden_size, 1]
-        self.h_q, self.h_ap, self.h_am = self.add_hl(q_embed, aplus_embed, aminus_embed)
+        self.h_q, self.h_ap, self.h_am = self.add_hl(self.q, self.aplus, self.aminus)
         # [batch_size, total_channels]
         real_pool_q, real_pool_ap, real_pool_am = self.add_model(self.h_q, self.h_ap, self.h_am)
+        # real_pool_q, real_pool_ap, real_pool_am = self.add_model(self.h_q, self.h_ap, self.h_am)
         # [batch_size, 1]
         self.q_ap_cosine, self.q_am_cosine = self.calc_cosine(real_pool_q, real_pool_ap, real_pool_am)
         # 损失和精确度
         self.total_loss, self.loss, self.accu = self.add_loss_op(self.q_ap_cosine, self.q_am_cosine)
         # 训练节点
         self.train_op = self.add_train_op(self.total_loss)
-
-
+        # self. global_step
     # 输入
     def add_placeholders(self):
+        # # 问题
+        # self.q = tf.placeholder(np.int32,
+        #         shape=[self.config.batch_size, self.config.sequence_length],
+        #         name='Question')
+        # # 正向回答
+        # self.aplus = tf.placeholder(np.int32,
+        #         shape=[self.config.batch_size, self.config.sequence_length],
+        #         name='PosAns')
+        # # 负向回答
+        # self.aminus = tf.placeholder(np.int32,
+        #         shape=[self.config.batch_size, self.config.sequence_length],
+        #         name='NegAns')
+
         # 问题
-        self.q = tf.placeholder(np.int32,
-                shape=[self.config.batch_size, self.config.sequence_length],
+        self.q = tf.placeholder(np.float32,
+                shape=[self.config.batch_size, self.config.sequence_length,self.config.vocab_size],
                 name='Question')
         # 正向回答
-        self.aplus = tf.placeholder(np.int32,
-                shape=[self.config.batch_size, self.config.sequence_length],
+        self.aplus = tf.placeholder(np.float32,
+                shape=[self.config.batch_size, self.config.sequence_length,self.config.vocab_size],
                 name='PosAns')
         # 负向回答
-        self.aminus = tf.placeholder(np.int32,
-                shape=[self.config.batch_size, self.config.sequence_length],
+        self.aminus = tf.placeholder(np.float32,
+                shape=[self.config.batch_size, self.config.sequence_length,self.config.vocab_size],
                 name='NegAns')
+
+
         # drop_out
         self.keep_prob = tf.placeholder(tf.float32, name='keep_prob')
-
-    # word embeddings
-    def add_embeddings(self):
-        with tf.variable_scope('embedding'):
-            embeddings = tf.get_variable('embeddings', initializer=tf.constant(0.1, shape=[self.config.vocab_size, self.config.embedding_size]))
-            q_embed = tf.nn.embedding_lookup(embeddings, self.q)
-            aplus_embed = tf.nn.embedding_lookup(embeddings, self.aplus)
-            aminus_embed = tf.nn.embedding_lookup(embeddings, self.aminus)
-            return q_embed, aplus_embed, aminus_embed
-
+    #
+    # # word embeddings
+    # def add_embeddings(self):
+    #     with tf.variable_scope('embedding'):
+    #         embeddings = tf.get_variable('embeddings', initializer=tf.constant(0.1, shape=[self.config.vocab_size, self.config.embedding_size]))
+    #         q_embed = tf.nn.embedding_lookup(embeddings, self.q)
+    #         aplus_embed = tf.nn.embedding_lookup(embeddings, self.aplus)
+    #         aminus_embed = tf.nn.embedding_lookup(embeddings, self.aminus)
+    #         return q_embed, aplus_embed, aminus_embed
+    #
     # Hidden Layer
     def add_hl(self, q_embed, aplus_embed, aminus_embed):
         with tf.variable_scope('HL'):
-            W = tf.get_variable('weights', initializer=tf.constant(0.1, shape=[self.config.embedding_size, self.config.hidden_size]))
+            W = tf.get_variable('weights', initializer=tf.constant(0.1, shape=[self.config.vocab_size, self.config.hidden_size]))
             b = tf.get_variable('biases', initializer=tf.constant(0.1, shape=[self.config.hidden_size]))
-            h_q = tf.reshape(tf.nn.tanh(tf.matmul(tf.reshape(q_embed, [-1, self.config.embedding_size]), W)+b), [self.config.batch_size, self.config.sequence_length, -1])
-            h_ap = tf.reshape(tf.nn.tanh(tf.matmul(tf.reshape(aplus_embed, [-1, self.config.embedding_size]), W)+b), [self.config.batch_size, self.config.sequence_length, -1])
-            h_am = tf.reshape(tf.nn.tanh(tf.matmul(tf.reshape(aminus_embed, [-1, self.config.embedding_size]), W)+b), [self.config.batch_size, self.config.sequence_length, -1])
+            h_q = tf.reshape(tf.nn.tanh(tf.matmul(tf.reshape(q_embed, [-1, self.config.vocab_size]), W)+b), [self.config.batch_size, self.config.sequence_length, -1])
+            h_ap = tf.reshape(tf.nn.tanh(tf.matmul(tf.reshape(aplus_embed, [-1, self.config.vocab_size]), W)+b), [self.config.batch_size, self.config.sequence_length, -1])
+            h_am = tf.reshape(tf.nn.tanh(tf.matmul(tf.reshape(aminus_embed, [-1, self.config.vocab_size]), W)+b), [self.config.batch_size, self.config.sequence_length, -1])
             tf.add_to_collection('total_loss', 0.5*self.config.l2_reg_lambda*tf.nn.l2_loss(W))
             # print 'h_q[shape]:', tf.shape(h_q)
             # print 'h_ap[shape]:', tf.shape(h_ap)
@@ -87,9 +102,11 @@ class QACNN(Model):
                 pool_ab = tf.get_variable('pool_ab', initializer=tf.constant(0.1, shape=[self.config.num_filters]))
                 # 卷积
                 out_q = tf.nn.relu((tf.nn.conv2d(h_q, conv1_W, [1,1,1,1], padding='VALID')+conv1_b))
+                out_q_drop = tf.nn.dropout(out_q, keep_prob=self.keep_prob)
                 # 池化
-                out_q = tf.nn.max_pool(out_q, [1,self.config.sequence_length-filter_size+1,1,1], [1,1,1,1], padding='VALID')
+                out_q = tf.nn.max_pool(out_q_drop, [1,self.config.sequence_length-filter_size+1,1,1], [1,1,1,1], padding='VALID')
                 out_q = tf.nn.tanh(out_q+pool_qb)
+
                 pool_q.append(out_q)
 
                 out_ap = tf.nn.relu((tf.nn.conv2d(h_ap, conv1_W, [1,1,1,1], padding='VALID')+conv1_b))
@@ -127,6 +144,7 @@ class QACNN(Model):
         q_ap_cosine = tf.div(tf.reduce_sum(tf.multiply (real_pool_q, real_pool_ap), [1]), tf.multiply (len_pool_q, len_pool_ap))
         q_am_cosine = tf.div(tf.reduce_sum(tf.multiply (real_pool_q, real_pool_am), [1]), tf.multiply (len_pool_q, len_pool_am))
 
+        # print("shape:",q_ap_cosine,q_ap_cosine[0])
         return q_ap_cosine, q_am_cosine
 
     # 损失节点
